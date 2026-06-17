@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dataman"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "click>=8.1",
+    "dvc>=3.0",
+    "gitpython>=3.1",
+    "fastapi>=0.111",
+    "uvicorn[standard]>=0.29",
+    "opencv-python-headless>=4.9",
+    "Pillow>=10.3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-cov", "httpx"]
+
+[project.scripts]
+dataman = "dataman.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]

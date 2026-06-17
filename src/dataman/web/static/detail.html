@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>dataman — Dataset Detail</title>
+  <style>
+    body { font-family: monospace; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.4rem; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #ddd; }
+    .issues { margin-top: 1.5rem; }
+    .issue-row td { color: #c00; }
+    a { color: #0066cc; }
+  </style>
+</head>
+<body>
+  <p><a href="index.html">← Back to list</a></p>
+  <h1 id="title">Loading...</h1>
+  <table><tbody id="meta-body"></tbody></table>
+  <div class="issues">
+    <h2>Quality Issues</h2>
+    <table>
+      <thead><tr><th>Kind</th><th>File</th><th>Detail</th></tr></thead>
+      <tbody id="issues-body"></tbody>
+    </table>
+  </div>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("id");
+    if (!id) {
+      document.getElementById("title").textContent = "No snapshot ID provided.";
+    } else {
+      fetch(`/api/datasets/${encodeURIComponent(id)}`)
+        .then(r => { if (!r.ok) throw new Error("Not found"); return r.json(); })
+        .then(d => {
+          document.title = `dataman — ${d.snapshot_id}`;
+          document.getElementById("title").textContent = d.snapshot_id;
+          const fields = ["name","version","registered_by","registered_on",
+                          "file_count","total_size_bytes","quality_score"];
+          document.getElementById("meta-body").innerHTML = fields.map(k =>
+            `<tr><th>${k}</th><td>${d[k]}</td></tr>`
+          ).join("");
+          const issues = d.quality_issues || [];
+          document.getElementById("issues-body").innerHTML = issues.length
+            ? issues.map(i =>
+                `<tr class="issue-row"><td>${i.kind}</td><td>${i.file}</td><td>${i.detail}</td></tr>`
+              ).join("")
+            : `<tr><td colspan="3">No issues.</td></tr>`;
+        })
+        .catch(() => {
+          document.getElementById("title").textContent = `Dataset not found: ${id}`;
+        });
+    }
+  </script>
+</body>
+</html>

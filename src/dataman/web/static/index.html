@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>dataman — Datasets</title>
+  <style>
+    body { font-family: monospace; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.4rem; }
+    input { width: 100%; padding: 0.4rem; margin-bottom: 1rem; font-size: 1rem; box-sizing: border-box; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #ddd; }
+    a { color: #0066cc; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <h1>dataman — Registered Datasets</h1>
+  <input id="search" type="text" placeholder="Search datasets..." oninput="filterTable()">
+  <table id="table">
+    <thead><tr><th>Snapshot ID</th><th>Name</th><th>Version</th></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <script>
+    let allRows = [];
+    fetch("/api/datasets")
+      .then(r => r.json())
+      .then(data => {
+        allRows = data;
+        renderTable(data);
+      });
+
+    function renderTable(rows) {
+      const tbody = document.getElementById("tbody");
+      tbody.innerHTML = rows.map(d =>
+        `<tr>
+          <td><a href="detail.html?id=${encodeURIComponent(d.snapshot_id)}">${d.snapshot_id}</a></td>
+          <td>${d.name}</td>
+          <td>${d.version}</td>
+        </tr>`
+      ).join("");
+    }
+
+    function filterTable() {
+      const q = document.getElementById("search").value.toLowerCase();
+      renderTable(allRows.filter(d => d.snapshot_id.toLowerCase().includes(q)));
+    }
+  </script>
+</body>
+</html>
