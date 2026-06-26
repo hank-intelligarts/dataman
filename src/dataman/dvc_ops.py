@@ -21,14 +21,12 @@ def dvc_add(path: Path, repo_path: Path | None = None) -> None:
 
 def _write_external_dvc_file(path: Path, repo_path: Path) -> None:
     dvc_file = repo_path / (path.name + ".dvc")
-    md5 = _dir_md5(path) if path.is_dir() else hashlib.md5(path.read_bytes()).hexdigest()
-    content = {
-        "outs": [{
-            "path": str(path),
-            "md5": md5,
-            "isdir": path.is_dir(),
-        }]
-    }
+    out = {"path": str(path)}
+    if path.is_dir():
+        out["md5"] = _dir_md5(path)
+    else:
+        out["md5"] = hashlib.md5(path.read_bytes()).hexdigest()
+    content = {"outs": [out]}
     dvc_file.write_text(yaml.dump(content, default_flow_style=False))
 
 
