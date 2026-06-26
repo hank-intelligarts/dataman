@@ -50,11 +50,13 @@ def register_dataset(
     write_metadata(path, meta)
     write_manifest(path)
 
-    dvc_add(path)
+    dvc_add(path, repo_path=repo_path)
     dvc_push(remote=nfs_remote)
+    link = repo_path / path.name
+    dvc_file = (link if link.exists() and link.is_symlink() else path).name + ".dvc"
     commit_and_tag(
         repo_path=repo_path,
-        files_to_add=[str(path) + ".dvc"],
+        files_to_add=[dvc_file],
         message=f"register dataset {name} v{version}",
         tag=tag,
     )
