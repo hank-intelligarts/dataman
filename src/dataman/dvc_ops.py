@@ -9,7 +9,7 @@ def _run(cmd: list[str]) -> None:
 
 
 def dvc_add(path: Path) -> None:
-    _run(["dvc", "add", str(path)])
+    _run(["dvc", "add", "--external", str(path)])
 
 
 def dvc_push(remote: str) -> None:
