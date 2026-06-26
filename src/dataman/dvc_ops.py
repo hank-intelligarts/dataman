@@ -1,4 +1,6 @@
+import hashlib
 import subprocess
+import yaml
 from pathlib import Path
 
 
@@ -9,18 +11,37 @@ def _run(cmd: list[str], cwd: Path | None = None) -> None:
 
 
 def dvc_add(path: Path, repo_path: Path | None = None) -> None:
-    # DVC 3.x requires data to be inside the project, use symlink if external
+    cwd = repo_path or path.parent
     if repo_path and not str(path).startswith(str(repo_path)):
-        link = repo_path / path.name
-        if not link.exists():
-            link.symlink_to(path)
-        _run(["dvc", "add", path.name], cwd=repo_path)
+        # External path: write .dvc file manually (DVC 3.x doesn't support symlinks)
+        _write_external_dvc_file(path, repo_path)
     else:
-        _run(["dvc", "add", str(path)])
+        _run(["dvc", "add", str(path)], cwd=cwd)
 
 
-def dvc_push(remote: str) -> None:
-    _run(["dvc", "push", "-r", remote])
+def _write_external_dvc_file(path: Path, repo_path: Path) -> None:
+    dvc_file = repo_path / (path.name + ".dvc")
+    md5 = _dir_md5(path) if path.is_dir() else hashlib.md5(path.read_bytes()).hexdigest()
+    content = {
+        "outs": [{
+            "path": str(path),
+            "md5": md5,
+            "isdir": path.is_dir(),
+        }]
+    }
+    dvc_file.write_text(yaml.dump(content, default_flow_style=False))
+
+
+def _dir_md5(path: Path) -> str:
+    h = hashlib.md5()
+    for f in sorted(path.rglob("*")):
+        if f.is_file():
+            h.update(f.read_bytes())
+    return h.hexdigest()
+
+
+def dvc_push(remote: str, repo_path: Path | None = None) -> None:
+    _run(["dvc", "push", "-r", remote], cwd=repo_path)
 
 
 def dvc_pull(path: Path, remote: str) -> None:
