@@ -32,13 +32,19 @@ def get_dataset_detail(snapshot_id: str, nfs_dataset_paths: list[Path]) -> Optio
     _, name, version_str = parts
     version = version_str.lstrip("v")
     prefix = f"{name}_v{version}_"
+
     for nfs_datasets in nfs_dataset_paths:
         if not nfs_datasets.exists():
             continue
         for candidate in nfs_datasets.iterdir():
-            if candidate.is_dir() and candidate.name.startswith(prefix):
+            if not candidate.is_dir():
+                continue
+            # Match versioned dir (name_vX.Y_YYYYMMDD) or plain name dir
+            if candidate.name.startswith(prefix) or candidate.name == name:
                 try:
-                    return read_metadata(candidate)
+                    meta = read_metadata(candidate)
+                    if meta.get("snapshot_id") == snapshot_id:
+                        return meta
                 except FileNotFoundError:
                     continue
     return None
