@@ -9,13 +9,13 @@ NFS                              Server                        GitHub
 ───────────────────              ──────────────────            ──────────────────
 /storage/Internal_NAS/           dataman register  ──────►     .dvc + git tag
   dataset/BONES/                 dataman serve                 metadata.json
-  dataset/animate_pose/          (Web UI)
+  dataset/animate_pose/          (Web UI :8000)
   dataset/...
 ```
 
 ---
 
-## Server 端設定（管理者，第一次）
+## 一、Server 端設定（管理者，第一次）
 
 ### 1. 安裝 dataman
 
@@ -52,7 +52,7 @@ dataman config init
 
 ---
 
-## Server 端日常操作（管理者）
+## 二、Server 端日常操作（管理者）
 
 ### 新增 dataset
 
@@ -84,9 +84,9 @@ dataman serve --repo-path ~/Code/dataman-registry --port 8000
 
 ---
 
-## Client 端使用（Data Scientist）
+## 三、Data Scientist Onboarding
 
-### 方式 1 — Web UI（不需安裝任何東西）
+### 方式 1 — 只看資料（Web UI，不需安裝任何東西）
 
 直接用瀏覽器開：
 
@@ -95,36 +95,76 @@ http://192.168.51.48:8000
 ```
 
 可以看到：
-- 所有 dataset 列表
-- 每個 dataset 的版本、檔案數、品質分數
-- Quality Issues（duplicate、corrupt 等）
+- 所有 dataset 列表與版本
+- 每個 dataset 的檔案數、大小、品質分數
+- Quality Issues 詳細列表
 
-### 方式 2 — CLI
+### 方式 2 — 需要把資料抓到本機訓練（CLI）
 
-#### 第一次設定（每台機器做一次）
+#### Step 1 — 安裝（每台機器做一次）
 
 ```bash
 pip install git+https://github.com/hank-intelligarts/dataman.git
-dataman config init
-# NFS remote name:  internal-nas
-# DVC cache path:   /storage/Internal_NAS/dvc-remote
-# Dataset path:     /storage/Internal_NAS/dataset
 ```
 
-#### 常用指令
+#### Step 2 — Clone registry（每台機器做一次）
 
 ```bash
-# 列出所有 dataset 版本
-dataman list --repo-path ~/Code/dataman-registry
+git clone git@github.com:hank-intelligarts/dataman-registry.git ~/dataman-registry
+```
 
-# 看某個 dataset 詳細資訊
-dataman info --path /storage/Internal_NAS/dataset/BONES
+#### Step 3 — 設定 NFS config（每台機器做一次）
 
-# 把 dataset 抓到本機訓練
-dataman pull dataset/bones/v1.0 --repo-path ~/Code/dataman-registry
+```bash
+dataman config init
+```
 
-# 品質掃描
-dataman scan --path /storage/Internal_NAS/dataset/BONES
+輸入：
+- NFS remote name: `internal-nas`
+- DVC cache path: `/storage/Internal_NAS/dvc-remote`
+- Dataset path: `/storage/Internal_NAS/dataset`
+- Default remote: `internal-nas`
+- Dataset name: Enter 跳過
+
+#### Step 4 — 看有哪些 dataset
+
+```bash
+dataman list --repo-path ~/dataman-registry
+```
+
+輸出範例：
+```
+dataset/bones/v1.0
+dataset/animate_pose/v1.0
+```
+
+#### Step 5 — 把 dataset 抓到本機
+
+```bash
+dataman pull dataset/bones/v1.0 --repo-path ~/dataman-registry
+```
+
+資料會出現在目前目錄下。
+
+#### Step 6 — 用自己的訓練程式訓練
+
+`train.py` 是你自己的訓練程式，dataman 只負責提供資料。記錄用了哪個版本：
+
+```python
+# 在你的 train.py 或 config.yaml 裡記錄
+DATASET_SNAPSHOT = "dataset/bones/v1.0"
+```
+
+```bash
+python train.py --data ./BONES
+```
+
+#### 更新到新版本
+
+```bash
+git pull                                    # 拿到最新的 registry
+dataman pull dataset/bones/v2.0 --repo-path ~/dataman-registry
+python train.py --data ./BONES
 ```
 
 ---
@@ -146,7 +186,7 @@ dataman scan --path /storage/Internal_NAS/dataset/BONES
 
 ---
 
-## Config 格式
+## Config 格式參考
 
 `~/.dataman/config.toml`（每台機器各自設定，不 commit 到 GitHub）：
 
