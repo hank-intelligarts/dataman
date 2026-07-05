@@ -39,8 +39,8 @@ def get_dataset_detail(snapshot_id: str, nfs_dataset_paths: list[Path]) -> Optio
         for candidate in nfs_datasets.iterdir():
             if not candidate.is_dir():
                 continue
-            # Match versioned dir (name_vX.Y_YYYYMMDD) or plain name dir
-            if candidate.name.startswith(prefix) or candidate.name == name:
+            # Match versioned dir (name_vX.Y_YYYYMMDD) or plain name dir (case-insensitive)
+            if candidate.name.lower().startswith(prefix.lower()) or candidate.name.lower() == name.lower():
                 try:
                     meta = read_metadata(candidate)
                     if meta.get("snapshot_id") == snapshot_id:
