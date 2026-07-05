@@ -37,8 +37,9 @@ def config_init():
         remote_name = click.prompt("NFS remote name (e.g. nfs-1)", default="").strip()
         if not remote_name:
             break
-        mount_path = click.prompt(f"Mount path for {remote_name} (e.g. /mnt/nfs1/dvc-remote)").strip()
-        remotes[remote_name] = mount_path
+        mount_path = click.prompt(f"DVC cache path for {remote_name} (e.g. /mnt/nfs1/dvc-remote)").strip()
+        dataset_path = click.prompt(f"Dataset path for {remote_name} (e.g. /mnt/nfs1/dataset)").strip()
+        remotes[remote_name] = {"cache": mount_path, "datasets": dataset_path}
         more = click.confirm("Add another NFS remote?", default=False)
         if not more:
             break
@@ -61,8 +62,10 @@ def config_init():
         routing[ds_name] = ds_remote
 
     lines = ["[nfs]", f'default = "{default_remote}"', "", "[nfs.remotes]"]
-    for name, path in remotes.items():
-        lines.append(f'{name} = "{path}"')
+    for name, paths in remotes.items():
+        lines.append(f'[nfs.remotes.{name}]')
+        lines.append(f'cache = "{paths["cache"]}"')
+        lines.append(f'datasets = "{paths["datasets"]}"')
     if routing:
         lines.append("")
         lines.append("[nfs.routing]")

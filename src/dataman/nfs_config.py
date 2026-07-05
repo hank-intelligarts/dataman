@@ -14,8 +14,9 @@ CONFIG_PATH = Path.home() / ".dataman" / "config.toml"
 @dataclass
 class NfsConfig:
     default_remote: str
-    remotes: dict[str, str]  # remote_name → mount path
+    remotes: dict[str, str]  # remote_name → dvc cache path
     routing: dict[str, str]  # dataset_name → remote_name
+    _raw_remotes: dict = field(default_factory=dict)
 
 
 def load_nfs_config(config_path: Path = CONFIG_PATH) -> NfsConfig:
@@ -28,10 +29,19 @@ def load_nfs_config(config_path: Path = CONFIG_PATH) -> NfsConfig:
         data = tomllib.load(f)
 
     nfs = data.get("nfs", {})
+    raw_remotes = nfs.get("remotes", {})
+    # Support both old format (str) and new format (dict with cache/datasets)
+    remotes = {}
+    for name, val in raw_remotes.items():
+        if isinstance(val, dict):
+            remotes[name] = val.get("cache", "")
+        else:
+            remotes[name] = val
     return NfsConfig(
         default_remote=nfs.get("default", ""),
-        remotes=nfs.get("remotes", {}),
+        remotes=remotes,
         routing=nfs.get("routing", {}),
+        _raw_remotes=raw_remotes,
     )
 
 
@@ -57,8 +67,12 @@ def get_remote_path(remote_name: str, config: NfsConfig) -> Path:
 
 
 def get_all_dataset_paths(config: NfsConfig) -> list[Path]:
-    """Return all NFS datasets directories (one per remote)."""
-    return [
-        Path(mount).parent / "datasets"
-        for mount in config.remotes.values()
-    ]
+    """Return all NFS dataset directories (one per remote)."""
+    paths = []
+    for name, val in config._raw_remotes.items():
+        if isinstance(val, dict) and "datasets" in val:
+            paths.append(Path(val["datasets"]))
+        else:
+            # Old format: derive from cache path parent
+            paths.append(Path(config.remotes[name]).parent / "datasets")
+    return paths
