@@ -2,6 +2,55 @@
 
 AI training dataset management CLI + Web UI for on-prem GPU servers.
 
+---
+
+## Dataset 標準操作流程
+
+> 所有對 dataset 的操作都必須在完成後 register 新版本，確保版本可追蹤、可還原。
+
+### 新增 dataset
+
+```bash
+# 1. 把資料放到 NFS
+cp -r /your/data /storage/Internal_NAS/dataset/NEW_DATASET
+
+# 2. Register
+dataman register \
+  --path /storage/Internal_NAS/dataset/NEW_DATASET \
+  --name new_dataset \
+  --version 1.0 \
+  --repo-path ~/Code/dataman-registry
+```
+
+### 修改 dataset（增加/刪除/修改檔案）
+
+```bash
+# 1. 確認舊版本已經 register（重要！）
+dataman list --repo-path ~/Code/dataman-registry
+
+# 2. 直接在 NFS 上修改資料
+# 增加檔案：cp new_files/ /storage/Internal_NAS/dataset/BONES/
+# 刪除檔案：rm /storage/Internal_NAS/dataset/BONES/bad_file.jpg
+
+# 3. Register 新版本（版本號 +1）
+dataman register \
+  --path /storage/Internal_NAS/dataset/BONES \
+  --name bones \
+  --version 2.0 \
+  --repo-path ~/Code/dataman-registry
+```
+
+### 刪除 dataset
+
+dataman 不支援刪除（保留歷史記錄）。如果不想在 Web UI 顯示，直接不 register 新版本即可。真正要清除需手動刪除 git tag 和 NFS 資料。
+
+### 注意事項
+
+- 名稱只能用**小寫英文、數字、底線**（例如 `bones`、`animate_pose`）
+- 每次修改資料後**一定要 register 新版本**，否則舊版本無法還原
+- 不要在同一個版本號上重複 register（用新版本號）
+- `temp`、`testcase`、`tmp` 等暫時性資料夾不需要 register
+
 ## 架構
 
 ```
