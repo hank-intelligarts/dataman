@@ -55,11 +55,30 @@ dataman 不支援刪除（保留歷史記錄）。如果不想在 Web UI 顯示�
 
 ```
 NFS                              Server                        GitHub
-───────────────────              ──────────────────            ──────────────────
-/storage/Internal_NAS/           dataman register  ──────►     .dvc + git tag
-  dataset/BONES/                 dataman serve                 metadata.json
-  dataset/animate_pose/          (Web UI :8000)
+───────────────────              ──────────────────            ──────────────────────────────
+/storage/Internal_NAS/           dataman register  ──────►     hank-intelligarts/dataman-registry
+  dataset/BONES/                 dataman serve                   ├── bones.dvc
+    ├── metadata.json            (Web UI :8000)                  ├── animate_pose.dvc
+    ├── manifest.txt                                             └── git tags (版本快照)
+    └── A0001.png ...
+  dataset/animate_pose/
   dataset/...
+```
+
+## 兩個 GitHub Repo 的用途
+
+| Repo | 內容 | 誰更新 |
+|---|---|---|
+| `hank-intelligarts/dataman` | CLI 工具 source code | 開發者（你）|
+| `hank-intelligarts/dataman-registry` | `.dvc` 追蹤檔 + git tag | 每次 `dataman register` 自動 push |
+
+**metadata.json は NFS 上**（不在 GitHub）：
+
+```
+/storage/Internal_NAS/dataset/BONES/
+├── metadata.json    ← 品質分數、檔案數、registered_by 等
+├── manifest.txt     ← 每個檔案的 SHA256
+└── A0001.png ...    ← 實際資料
 ```
 
 ---
