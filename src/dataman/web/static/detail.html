@@ -4,19 +4,63 @@
   <meta charset="UTF-8">
   <title>dataman — Dataset Detail</title>
   <style>
-    body { font-family: monospace; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
-    h1 { font-size: 1.4rem; }
+    * { box-sizing: border-box; }
+    body { font-family: monospace; max-width: 1100px; margin: 2rem auto; padding: 0 1rem; background: #fafafa; color: #222; }
+    h1 { font-size: 1.4rem; margin-bottom: 0.5rem; }
+    h2 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; border-bottom: 1px solid #ddd; padding-bottom: 0.3rem; }
     table { border-collapse: collapse; width: 100%; }
     th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #ddd; }
-    .issues { margin-top: 1.5rem; }
-    .issue-row td { color: #c00; }
-    a { color: #0066cc; }
+    th { width: 180px; color: #555; }
+    .issues td { color: #c00; }
+    a { color: #0066cc; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Thumbnail grid */
+    .thumb-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 6px;
+      margin-top: 0.5rem;
+    }
+    .thumb-grid img {
+      width: 100%; height: 90px; object-fit: cover;
+      border: 1px solid #ddd; border-radius: 3px; cursor: pointer;
+      background: #eee;
+    }
+    .thumb-grid img:hover { border-color: #0066cc; }
+
+    /* File browser */
+    .browser { border: 1px solid #ddd; border-radius: 4px; background: #fff; margin-top: 0.5rem; }
+    .breadcrumb { padding: 0.4rem 0.8rem; background: #f0f0f0; border-bottom: 1px solid #ddd; font-size: 0.85rem; }
+    .breadcrumb span { color: #888; }
+    .breadcrumb a { color: #0066cc; }
+    .file-list { list-style: none; margin: 0; padding: 0; }
+    .file-list li { display: flex; align-items: center; padding: 0.35rem 0.8rem; border-bottom: 1px solid #f0f0f0; font-size: 0.9rem; }
+    .file-list li:last-child { border-bottom: none; }
+    .file-list li:hover { background: #f7f7f7; }
+    .file-list .icon { margin-right: 0.5rem; font-size: 1rem; }
+    .file-list .fname { flex: 1; }
+    .file-list .fsize { color: #888; font-size: 0.8rem; }
+    .file-list a { color: #222; }
+    .file-list .img-link { color: #0066cc; font-size: 0.8rem; margin-left: 0.5rem; }
+
+    /* Lightbox */
+    #lightbox {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+      z-index: 100; align-items: center; justify-content: center; flex-direction: column;
+    }
+    #lightbox.open { display: flex; }
+    #lightbox img { max-width: 90vw; max-height: 85vh; object-fit: contain; border-radius: 4px; }
+    #lightbox-caption { color: #ccc; font-size: 0.8rem; margin-top: 0.5rem; }
+    #lightbox-close { position: absolute; top: 1rem; right: 1.5rem; color: #fff; font-size: 2rem; cursor: pointer; line-height: 1; }
   </style>
 </head>
 <body>
   <p><a href="index.html">← Back to list</a></p>
   <h1 id="title">Loading...</h1>
+
   <table><tbody id="meta-body"></tbody></table>
+
   <div class="issues">
     <h2>Quality Issues</h2>
     <table>
@@ -24,12 +68,33 @@
       <tbody id="issues-body"></tbody>
     </table>
   </div>
+
+  <h2>Preview <span id="thumb-count" style="color:#888;font-weight:normal;font-size:0.9rem;"></span></h2>
+  <div class="thumb-grid" id="thumb-grid"></div>
+
+  <h2>Files</h2>
+  <div class="browser">
+    <div class="breadcrumb" id="breadcrumb"></div>
+    <ul class="file-list" id="file-list"></ul>
+  </div>
+
+  <!-- Lightbox -->
+  <div id="lightbox">
+    <span id="lightbox-close" onclick="closeLightbox()">✕</span>
+    <img id="lightbox-img" src="" alt="">
+    <div id="lightbox-caption"></div>
+  </div>
+
   <script>
     const params = new URLSearchParams(window.location.search);
     const id = params.get("id");
+    let currentDir = "";
+    let snapshotId = id;
+
     if (!id) {
       document.getElementById("title").textContent = "No snapshot ID provided.";
     } else {
+      // Load metadata
       fetch(`/api/datasets/${encodeURIComponent(id)}`)
         .then(r => { if (!r.ok) throw new Error("Not found"); return r.json(); })
         .then(d => {
@@ -38,18 +103,147 @@
           const fields = ["name","version","registered_by","registered_on",
                           "file_count","total_size_bytes","quality_score"];
           document.getElementById("meta-body").innerHTML = fields.map(k =>
-            `<tr><th>${k}</th><td>${d[k]}</td></tr>`
+            `<tr><th>${k}</th><td>${d[k] ?? "—"}</td></tr>`
           ).join("");
           const issues = d.quality_issues || [];
           document.getElementById("issues-body").innerHTML = issues.length
             ? issues.map(i =>
-                `<tr class="issue-row"><td>${i.kind}</td><td>${i.file}</td><td>${i.detail}</td></tr>`
+                `<tr class="issues"><td>${i.kind}</td><td>${i.file}</td><td>${i.detail}</td></tr>`
               ).join("")
             : `<tr><td colspan="3">No issues.</td></tr>`;
         })
         .catch(() => {
           document.getElementById("title").textContent = `Dataset not found: ${id}`;
         });
+
+      // Load thumbnails (top-level images, up to 20)
+      loadThumbs();
+
+      // Load file browser
+      loadDir("");
+    }
+
+    function loadThumbs() {
+      fetch(`/api/datasets/${encodeURIComponent(id)}/files?dir=`)
+        .then(r => r.json())
+        .then(data => collectImages(data.entries, id, 20))
+        .then(images => {
+          const grid = document.getElementById("thumb-grid");
+          if (images.length === 0) {
+            grid.innerHTML = "<span style='color:#888;font-size:0.85rem'>No images found at top level. Browse subdirectories below.</span>";
+            return;
+          }
+          document.getElementById("thumb-count").textContent = `(${images.length} shown)`;
+          grid.innerHTML = images.map(p =>
+            `<img src="/api/datasets/${encodeURIComponent(id)}/preview?path=${encodeURIComponent(p.path)}"
+                  title="${p.path}"
+                  onclick="openLightbox('${encodeURIComponent(p.path)}','${escHtml(p.path)}')"
+                  loading="lazy">`
+          ).join("");
+        })
+        .catch(() => {});
+    }
+
+    async function collectImages(entries, sid, max) {
+      let images = [];
+      for (const e of entries) {
+        if (images.length >= max) break;
+        if (e.type === "image") {
+          images.push(e);
+        } else if (e.type === "dir" && images.length < max) {
+          try {
+            const r = await fetch(`/api/datasets/${encodeURIComponent(sid)}/files?dir=${encodeURIComponent(e.path)}`);
+            const sub = await r.json();
+            const subImgs = await collectImages(sub.entries, sid, max - images.length);
+            images = images.concat(subImgs);
+          } catch(_) {}
+        }
+      }
+      return images.slice(0, max);
+    }
+
+    function loadDir(dir) {
+      currentDir = dir;
+      fetch(`/api/datasets/${encodeURIComponent(id)}/files?dir=${encodeURIComponent(dir)}`)
+        .then(r => r.json())
+        .then(data => renderBrowser(data))
+        .catch(() => {
+          document.getElementById("file-list").innerHTML = "<li style='padding:1rem;color:#c00'>Failed to load files.</li>";
+        });
+    }
+
+    function renderBrowser(data) {
+      // Breadcrumb
+      const parts = data.dir ? data.dir.split("/") : [];
+      let bc = `<a href="#" onclick="loadDir('');return false;">root</a>`;
+      let accum = "";
+      parts.forEach((p, i) => {
+        accum = accum ? accum + "/" + p : p;
+        const path = accum;
+        if (i < parts.length - 1) {
+          bc += ` / <a href="#" onclick="loadDir('${escHtml(path)}');return false;">${escHtml(p)}</a>`;
+        } else {
+          bc += ` / <span>${escHtml(p)}</span>`;
+        }
+      });
+      document.getElementById("breadcrumb").innerHTML = bc;
+
+      // File list
+      const ul = document.getElementById("file-list");
+      let html = "";
+      if (data.dir) {
+        const parent = data.dir.includes("/") ? data.dir.split("/").slice(0,-1).join("/") : "";
+        html += `<li><span class="icon">📁</span><span class="fname"><a href="#" onclick="loadDir('${escHtml(parent)}');return false;">..</a></span></li>`;
+      }
+      for (const e of data.entries) {
+        if (e.type === "dir") {
+          html += `<li>
+            <span class="icon">📁</span>
+            <span class="fname"><a href="#" onclick="loadDir('${escHtml(e.path)}');return false;">${escHtml(e.name)}</a></span>
+          </li>`;
+        } else if (e.type === "image") {
+          html += `<li>
+            <span class="icon">🖼</span>
+            <span class="fname">${escHtml(e.name)}</span>
+            <span class="fsize">${fmtSize(e.size)}</span>
+            <a class="img-link" href="#" onclick="openLightbox('${encodeURIComponent(e.path)}','${escHtml(e.path)}');return false;">[view]</a>
+          </li>`;
+        } else {
+          html += `<li>
+            <span class="icon">📄</span>
+            <span class="fname">${escHtml(e.name)}</span>
+            <span class="fsize">${fmtSize(e.size)}</span>
+          </li>`;
+        }
+      }
+      if (!html) html = "<li style='padding:0.5rem 0.8rem;color:#888'>Empty directory.</li>";
+      ul.innerHTML = html;
+    }
+
+    function openLightbox(encodedPath, caption) {
+      const lb = document.getElementById("lightbox");
+      document.getElementById("lightbox-img").src =
+        `/api/datasets/${encodeURIComponent(id)}/preview?path=${encodedPath}`;
+      document.getElementById("lightbox-caption").textContent = caption;
+      lb.classList.add("open");
+    }
+    function closeLightbox() {
+      document.getElementById("lightbox").classList.remove("open");
+      document.getElementById("lightbox-img").src = "";
+    }
+    document.getElementById("lightbox").addEventListener("click", function(e) {
+      if (e.target === this) closeLightbox();
+    });
+    document.addEventListener("keydown", e => { if (e.key === "Escape") closeLightbox(); });
+
+    function fmtSize(b) {
+      if (!b) return "";
+      if (b < 1024) return b + " B";
+      if (b < 1024*1024) return (b/1024).toFixed(1) + " KB";
+      return (b/1024/1024).toFixed(1) + " MB";
+    }
+    function escHtml(s) {
+      return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
     }
   </script>
 </body>
